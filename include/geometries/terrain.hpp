@@ -3,7 +3,7 @@
 
 #include "geometries/grid.hpp"
 #include "geometries/geometry.hpp"
-#include "image.hpp"
+#include "texture/image.hpp"
 
 /**
  * Inspired by triangle-strip terrain from this tutorial:

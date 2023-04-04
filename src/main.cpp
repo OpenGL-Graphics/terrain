@@ -4,10 +4,14 @@
 
 #include "window.hpp"
 #include "navigation/camera.hpp"
-#include "texture_2d.hpp"
-#include "shader_exception.hpp"
+#include "shader/shader_exception.hpp"
+
+#include "texture/texture_3d.hpp"
+#include "texture/texture_2d.hpp"
 
 #include "geometries/plane.hpp"
+#include "geometries/cube.hpp"
+
 #include "render/splatmap.hpp"
 
 using namespace geometry;
@@ -57,8 +61,9 @@ int main() {
   // create & install vertex & fragment shaders on GPU
   Program program_plane("assets/shaders/plane.vert", "assets/shaders/plane.frag");
   Program program_terrain("assets/shaders/light_terrain.vert", "assets/shaders/light_terrain.frag");
+  Program program_skybox("assets/shaders/skybox.vert", "assets/shaders/skybox.frag");
 
-  if (program_plane.has_failed() || program_terrain.has_failed()) {
+  if (program_plane.has_failed() || program_terrain.has_failed() || program_skybox.has_failed()) {
     window.destroy();
     throw ShaderException();
   }
@@ -67,7 +72,21 @@ int main() {
   // renderer (encapsulates VAO & VBO) for each shape to render
   Texture2D texture_wave(Image("assets/images/plane/wave.png"));
   Renderer plane(program_plane, Plane(50, 50), Attributes::get({"position", "normal", "texture_coord"}));
-  // Renderer plane(program_plane, Plane(500, 500), Attributes::get({"position", "normal", "texture_coord"}));
+
+  // 3D cube texture for skybox (left-handed coords system for cubemaps)
+  // See faces order: https://www.khronos.org/opengl/wiki/Cubemap_Texture
+  // cubemap images have their origin at upper-left corner (=> don't flip)
+  // https://stackoverflow.com/a/11690553/2228912
+  std::vector<Image> skybox_images = {
+    Image("assets/images/skybox/posx.jpg", false), // pos-x (right face)
+    Image("assets/images/skybox/negx.jpg", false), // neg-x (left face)
+    Image("assets/images/skybox/posy.jpg", false), // pos-y (top face)
+    Image("assets/images/skybox/negy.jpg", false), // neg-y (bottom face)
+    Image("assets/images/skybox/posz.jpg", false), // pos-z (front face)
+    Image("assets/images/skybox/negz.jpg", false)  // neg-z (back face)
+  };
+  Texture3D texture_skybox(skybox_images);
+  Renderer skybox(program_skybox, Cube(true), Attributes::get({"position"}, 8));
 
   // terrain from triangle strips & textured with image splatmap
   Splatmap terrain(program_terrain);
@@ -94,6 +113,23 @@ int main() {
 
     // clear color & depth buffers before rendering every frame
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glDepthMask(GL_TRUE);
+
+    // draw skybox
+    // https://learnopengl.com/Advanced-OpenGL/Cubemaps
+    // disable depth testing so skybox is always at background
+    // mandatory bcos of below otherwise cube will hide everything else (coz it closest to camera)
+    glDepthMask(GL_FALSE);
+
+    // no translation of skybox when camera moves
+    // camera initially at origin always inside skybox unit cube => skybox looks larger
+    glm::mat4 view_without_translation = glm::mat4(glm::mat3(view));
+    skybox.set_transform({
+      { glm::scale(glm::mat4(1.0f), glm::vec3(2)) },
+      view_without_translation, projection3d
+    });
+    skybox.draw({ {"texture3d", texture_skybox } });
+
     glDepthMask(GL_TRUE);
 
     // draw textured terrain using triangle strips
@@ -126,10 +162,12 @@ int main() {
 
   // destroy textures
   texture_wave.free();
+  texture_skybox.free();
 
   // destroy shaders
   program_plane.free();
   program_terrain.free();
+  program_skybox.free();
 
   // destroy renderers of each shape (frees vao & vbo)
   terrain.free();
