@@ -11,6 +11,8 @@
 
 #include "geometries/plane.hpp"
 #include "geometries/cube.hpp"
+#include "geometries/gizmo.hpp"
+#include "geometries/grid_lines.hpp"
 
 #include "render/splatmap.hpp"
 
@@ -62,8 +64,9 @@ int main() {
   Program program_plane("assets/shaders/plane.vert", "assets/shaders/plane.frag");
   Program program_terrain("assets/shaders/light_terrain.vert", "assets/shaders/light_terrain.frag");
   Program program_skybox("assets/shaders/skybox.vert", "assets/shaders/skybox.frag");
+  Program program_basic("assets/shaders/basic.vert", "assets/shaders/basic.frag");
 
-  if (program_plane.has_failed() || program_terrain.has_failed() || program_skybox.has_failed()) {
+  if (program_plane.has_failed() || program_terrain.has_failed() || program_skybox.has_failed() || program_basic.has_failed()) {
     window.destroy();
     throw ShaderException();
   }
@@ -90,6 +93,10 @@ int main() {
 
   // terrain from triangle strips & textured with image splatmap
   Splatmap terrain(program_terrain);
+
+  // grid & gizmo for debugging
+  Renderer gizmo(program_basic, Gizmo(), Attributes::get({"position"}));
+  Renderer grid(program_basic, GridLines(), Attributes::get({"position"}));
 
   // enable depth test & blending & stencil test (for outlines)
   glEnable(GL_DEPTH_TEST);
@@ -132,10 +139,20 @@ int main() {
 
     glDepthMask(GL_TRUE);
 
+    // draw xyz gizmo at origin using GL_LINES
+    gizmo.set_transform({ { glm::mat4(1.0) }, view, projection3d });
+    gizmo.draw_lines({ {"colors[0]", glm::vec3(1.0f, 0.0f, 0.0f)} }, 2, 0);
+    gizmo.draw_lines({ {"colors[0]", glm::vec3(0.0f, 1.0f, 0.0f)} }, 2, 2);
+    gizmo.draw_lines({ {"colors[0]", glm::vec3(0.0f, 0.0f, 1.0f)} }, 2, 4);
+
+    // draw horizontal 2d grid using GL_LINES
+    grid.set_transform({ { glm::mat4(1.0) }, view, projection3d });
+    grid.draw_lines({ {"colors[0]", glm::vec3(1.0f, 1.0f, 1.0f)} });
+
     // draw textured terrain using triangle strips
     terrain.set_transform({
-      // { glm::translate(glm::mat4(1.0f), glm::vec3(0, -2.5f, -14)) },
-      { glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -14)) },
+      { glm::translate(glm::mat4(1.0f), glm::vec3(0, -2.5f, -14)) },
+      // { glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -14)) },
       view, projection3d
     });
     terrain.draw();
@@ -168,10 +185,13 @@ int main() {
   program_plane.free();
   program_terrain.free();
   program_skybox.free();
+  program_basic.free();
 
   // destroy renderers of each shape (frees vao & vbo)
   terrain.free();
   plane.free();
+  gizmo.free();
+  grid.free();
 
   // destroy window & terminate glfw
   window.destroy();
