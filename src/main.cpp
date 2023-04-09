@@ -1,5 +1,4 @@
 #include <iostream>
-
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "window.hpp"
@@ -9,7 +8,6 @@
 #include "texture/texture_3d.hpp"
 #include "texture/texture_2d.hpp"
 
-#include "geometries/plane.hpp"
 #include "geometries/cube.hpp"
 #include "geometries/gizmo.hpp"
 #include "geometries/grid_lines.hpp"
@@ -43,16 +41,15 @@ int main() {
   }
 
   // camera
-  glm::vec3 position_cam(15, 10, 25);
-  // glm::vec3 position_cam(20, 20, 50);
-  // glm::vec3 direction_cam(0, 0, -1);
+  float cam_y = 10;
+  glm::vec3 position_cam(25, cam_y, 50);
   glm::vec3 direction_cam(0, -0.5, -1);
   glm::vec3 up_cam(0, 1, 0);
   Camera camera(position_cam, direction_cam, up_cam);
 
   // transformation matrices
   float near = 0.001,
-        far = 50.0;
+        far = 100.0;
   float aspect_ratio = (float) window.width / (float) window.height;
   glm::mat4 projection3d = glm::perspective(glm::radians(camera.fov), aspect_ratio, near, far);
 
@@ -61,20 +58,14 @@ int main() {
   ////////////////////////////////////////////////
 
   // create & install vertex & fragment shaders on GPU
-  Program program_plane("assets/shaders/plane.vert", "assets/shaders/plane.frag");
   Program program_terrain("assets/shaders/light_terrain.vert", "assets/shaders/light_terrain.frag");
   Program program_skybox("assets/shaders/skybox.vert", "assets/shaders/skybox.frag");
   Program program_basic("assets/shaders/basic.vert", "assets/shaders/basic.frag");
 
-  if (program_plane.has_failed() || program_terrain.has_failed() || program_skybox.has_failed() || program_basic.has_failed()) {
+  if (program_terrain.has_failed() || program_skybox.has_failed() || program_basic.has_failed()) {
     window.destroy();
     throw ShaderException();
   }
-
-  // flat grid plane (shape made as a sin wave in vertex shader)
-  // renderer (encapsulates VAO & VBO) for each shape to render
-  Texture2D texture_wave(Image("assets/images/plane/wave.png"));
-  Renderer plane(program_plane, Plane(50, 50), Attributes::get({"position", "normal", "texture_coord"}));
 
   // 3D cube texture for skybox (left-handed coords system for cubemaps)
   // See faces order: https://www.khronos.org/opengl/wiki/Cubemap_Texture
@@ -96,7 +87,7 @@ int main() {
 
   // grid & gizmo for debugging
   Renderer gizmo(program_basic, Gizmo(), Attributes::get({"position"}));
-  Renderer grid(program_basic, GridLines(), Attributes::get({"position"}));
+  Renderer grid(program_basic, GridLines(50), Attributes::get({"position"}));
 
   // enable depth test & blending & stencil test (for outlines)
   glEnable(GL_DEPTH_TEST);
@@ -114,13 +105,24 @@ int main() {
   ////////////////////////////////////////////////
 
   while (!window.is_closed()) {
-    // update transformation matrices (camera fov changes on zoom)
-    glm::mat4 view = camera.get_view();
-    projection3d = glm::perspective(glm::radians(camera.fov), (float) window.width / (float) window.height, 0.5f, 32.0f);
-
     // clear color & depth buffers before rendering every frame
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDepthMask(GL_TRUE);
+
+    /* rotate camera around pivot */
+    glm::vec3 pivot(25, 0, 25); // center of grid
+
+    float radius = 25,
+          time = glfwGetTime(),
+          angle = time / 2.0; // slow down rotation
+
+    // rotate around origin & translate by offset = pivot
+    float cam_x = pivot.x + radius * std::cos(angle),
+          cam_z = pivot.z + radius * std::sin(angle);
+    camera.position = glm::vec3(cam_x, cam_y, cam_z);
+
+    camera.direction = pivot - camera.position;
+    glm::mat4 view = camera.get_view();
 
     // draw skybox
     // https://learnopengl.com/Advanced-OpenGL/Cubemaps
@@ -147,7 +149,7 @@ int main() {
 
     // draw horizontal 2d grid using GL_LINES
     grid.set_transform({ { glm::mat4(1.0) }, view, projection3d });
-    grid.draw_lines({ {"colors[0]", glm::vec3(1.0f, 1.0f, 1.0f)} });
+    // grid.draw_lines({ {"colors[0]", glm::vec3(1.0f, 1.0f, 1.0f)} });
 
     // draw textured terrain using triangle strips
     terrain.set_transform({
@@ -156,17 +158,6 @@ int main() {
       view, projection3d
     });
     terrain.draw();
-
-    // draw animated & textured wave from plane using triangle strips
-    plane.set_transform({
-      { glm::translate(glm::mat4(1.0f), glm::vec3(3, 3, 0)) },
-      view, projection3d
-    });
-
-    plane.draw_plane({
-      {"texture2d", texture_wave},
-      {"time", static_cast<float>(glfwGetTime())},
-    });
 
     // process events & show rendered buffer
     window.process_events();
@@ -178,18 +169,15 @@ int main() {
   }
 
   // destroy textures
-  texture_wave.free();
   texture_skybox.free();
 
   // destroy shaders
-  program_plane.free();
   program_terrain.free();
   program_skybox.free();
   program_basic.free();
 
   // destroy renderers of each shape (frees vao & vbo)
   terrain.free();
-  plane.free();
   gizmo.free();
   grid.free();
 

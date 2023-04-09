@@ -18,7 +18,7 @@ namespace geometry {
   private:
     /* used to magnify/reduce size of grid (horizontally & vertically) */
     const float xz_scale = 1.0f / 5;
-    const float y_scale = 1.0f / 100;
+    const float y_scale = 1.0f / 50;
 
     /* heightmap image */
     Image m_image;
