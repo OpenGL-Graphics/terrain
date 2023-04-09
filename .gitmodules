@@ -1,6 +1,6 @@
 [submodule "glfw-window"]
 	path = glfw-window
-	url = git@github.com:OpenGL-Graphics/glfw-window.git
+	url = https://github.com/OpenGL-Graphics/glfw-window
 [submodule "opengl-utils"]
 	path = opengl-utils
-	url = git@github.com:OpenGL-Graphics/opengl-utils.git
+	url = https://github.com/OpenGL-Graphics/opengl-utils

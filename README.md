@@ -1,8 +1,8 @@
+# Screenshot
+![Screenshot](/screenshots/screenshot-2023-04-09.png)
+
 # Description
 Camera rotating around a splatmap terrain rendered with OpenGL.
-
-# Screenshot
-*Will be added later*
 
 # How to run
 ```console
